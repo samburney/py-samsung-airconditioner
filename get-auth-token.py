@@ -4,7 +4,7 @@ import asyncio
 import ssl
 import xmltodict
 import json
-import argparse 
+import argparse
 
 
 # Parse CLI arguments
@@ -75,7 +75,6 @@ class AirconditionerClientProtocol(asyncio.Protocol):
                     else:
                         print(f'Unsupported message: {json.dumps(data)}', file=sys.stderr)
 
-
                 # Response type 'Response'
                 elif 'Response' in data:
                     # Logged out, attemnpt to auth
@@ -104,9 +103,10 @@ class AirconditionerClientProtocol(asyncio.Protocol):
         return(yield from asyncio.sleep(30, result=self.waiting_for_token))
 
     def wait_for_token_expired(self, task):
-        if self.waiting_for_token == True:
+        if self.waiting_for_token is True:
             self.transport.close()
             print('Authentication period expired, exiting.', file=sys.stderr)
+
 
 # AC connection loop
 async def ac_connect(ac):
