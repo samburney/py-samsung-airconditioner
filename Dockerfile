@@ -6,4 +6,4 @@ WORKDIR /app
 
 RUN pip install -U pip \
     && pip install \
-    asyncio untangle
+    asyncio xmltodict argparse
