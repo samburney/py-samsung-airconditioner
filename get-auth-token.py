@@ -25,6 +25,7 @@ def parse_args():
 class AirconditionerClientProtocol(asyncio.Protocol):
     def __init__(self, on_con_lost):
         self.connected = False
+        self.stay_connected = False
         self.transport = None
         self.on_con_lost = on_con_lost
         self.waiting_for_token = False
@@ -37,6 +38,9 @@ class AirconditionerClientProtocol(asyncio.Protocol):
     def data_received(self, message):
         self.handle_data(message.decode())
 
+        if self.stay_connected is False:
+            self.transport.close()
+
     def connection_lost(self, exc):
         self.connected = False
         self.on_con_lost.set_result(True)
@@ -44,6 +48,7 @@ class AirconditionerClientProtocol(asyncio.Protocol):
 
     # Handle received data
     def handle_data(self, message):
+        self.stay_connected = True
         lines = message.splitlines()
 
         for line in lines:
@@ -53,7 +58,10 @@ class AirconditionerClientProtocol(asyncio.Protocol):
 
                 if line != 'DPLUG-1.6':
                     self.transport.close()
-                    exit(1, 'Protocol version unsupported.')
+                    print('Protocol version unsupported.', file=sys.stderr)
+                    
+                    self.stay_connected = False
+                    return
 
             # Process XML
             elif line.startswith('<?xml'):
@@ -71,30 +79,41 @@ class AirconditionerClientProtocol(asyncio.Protocol):
                         request_xml = xmltodict.unparse(request).replace('\n', '')
                         self.transport.write(f"{request_xml}\r\n".encode())
 
-                    # Handle unexpected messages
-                    else:
-                        print(f'Unsupported message: {json.dumps(data)}', file=sys.stderr)
+                        return
+
+                    # Successful token retrieval
+                    if data['Update']['@Status'] == 'Completed' and data['Update']['@Type'] == 'GetToken':
+                        if data['Update']['@Token']:
+                            self.waiting_for_token = False
+
+                            print(f"Authentication token: {data['Update']['@Token']}")
+
+                            self.stay_connected = False
+                            return
 
                 # Response type 'Response'
                 elif 'Response' in data:
-                    # Logged out, attemnpt to auth
-                    if data['Response']['@Type'] == 'GetToken':
-                        if data['Response']['@Status'] == 'Ready':
-                            task = asyncio.get_event_loop().create_task(self.wait_for_token())
-                            task.add_done_callback(self.wait_for_token_expired)
-                            print('Power on Airconditioner within 30 seconds...')
+                    # Handle Token Retrieval process
+                    if data['Response']['@Status'] == 'Ready' and data['Response']['@Type'] == 'GetToken':
+                        task = asyncio.get_event_loop().create_task(self.wait_for_token())
+                        task.add_done_callback(self.wait_for_token_expired)
+                        print('Power on Airconditioner within 30 seconds...')
 
-                        # Handle unexpected messages
-                        else:
-                            print(f'Unexpected message: {json.dumps(data)}', file=sys.stderr)
+                        return
 
-                    # Handle unexpected messages
-                    else:
-                        print(f'Unsupported message: {json.dumps(data)}', file=sys.stderr)
+                    # Airconditioner returned an error
+                    if data['Response']['@Status'] == 'Fail' and data['Response']['@Type'] == 'Authenticate':
+                        if self.waiting_for_token is True:
+                            self.waiting_for_token = False
+
+                            print(f"Error {data['Response']['@ErrorCode']}: Token retrieval failed", file=sys.stderr)
+
+                            self.stay_connected = False
+                            return
 
                 # Handle unexpected messages
-                else:
-                    print(f'Unsupported message: {json.dumps(data)}', file=sys.stderr)
+                print(f'Unsupported message: {json.dumps(data)}', file=sys.stderr)
+                return
 
     # Coroutine to wait for token from AC
     @asyncio.coroutine
