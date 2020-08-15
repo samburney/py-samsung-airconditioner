@@ -4,5 +4,6 @@ services:
     python:
         image: 'python-samsung-ac:dev'
         build: '.'
+        command: /bin/sh -c "while sleep 1000; do :; done"
         volumes:
             - '.:/app'
