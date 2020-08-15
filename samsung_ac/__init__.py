@@ -1,10 +1,10 @@
 import ssl
 import asyncio
 
-from . import protocol
+from . import client
 
 # AC connection loop
-async def connect(ac):
+async def connect(ac, **kwargs):
     # Create SSL context
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ssl_context.check_hostname = False
@@ -17,15 +17,17 @@ async def connect(ac):
     # Handle closed connection
     on_con_lost = loop.create_future()
 
-    transport = await loop.create_connection(
-        lambda: protocol.AirconditionerClientProtocol(on_con_lost, ac),
+    transport, protocol = await loop.create_connection(
+        lambda: client.AirconditionerClientProtocol(on_con_lost, ac, **kwargs),
         host=ac['ip'],
         port=ac['port'],
         ssl=ssl_context
     )
 
-    # Close transpot
+    # Close transport
     try:
         await on_con_lost
     finally:
         transport.close()
+
+    return protocol

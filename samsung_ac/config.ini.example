@@ -1,0 +1,13 @@
+[ac]
+ip =        # IP address of AC
+port =      # Port number AC is contactable on - usually 2878
+token =     # Token from get-auth-token.py
+duid =      # MAC address from AC in the format A1C2C3D4E5F6
+site = 
+room = 
+
+[influxdb]
+enabled = 0
+host = 
+port = 8086
+db = 
