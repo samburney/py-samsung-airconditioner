@@ -19,10 +19,18 @@ class AirconditionerClientProtocol(asyncio.Protocol):
         self.post_auth_command = None
         if 'post_auth_command' in kwargs:
             self.post_auth_command = kwargs['post_auth_command']
+        
+        self.post_auth_command_timer = None
+        if 'post_auth_command_timer' in kwargs:
+            self.post_auth_command_timer = kwargs['post_auth_command_timer']
 
         self.post_auth_stay_connected = False
         if 'stay_connected' in kwargs:
             self.post_auth_stay_connected = kwargs['stay_connected']
+
+        self.response_callback = None
+        if 'response_callback' in kwargs:
+            self.response_callback = kwargs['response_callback']
 
     def connection_made(self, transport):
         self.connected = True
@@ -77,13 +85,20 @@ class AirconditionerClientProtocol(asyncio.Protocol):
                         if data['Response']['@Type'] == 'DeviceState' and data['Response']['@Status'] == 'Okay':
                             if 'Attr' in data['Response']['DeviceState']['Device']:
                                 attrs = data['Response']['DeviceState']['Device']['Attr']
+                                
                                 self.response_data = attrs
                                 self.stay_connected = self.post_auth_stay_connected
+
+                                if self.response_callback is not None:
+                                    self.response_callback(data=data)
 
                                 return
                 
                 # Handle unexpected messages
-                print(f'Unsupported message: {json.dumps(data)}', file=sys.stderr)
+                if self.response_callback is None:
+                    print(f'Unsupported message: {json.dumps(data)}', file=sys.stderr)
+                else:
+                    self.response_callback(data=data)
 
                 if self.authenticated is True:
                     self.stay_connected = self.post_auth_stay_connected
@@ -193,12 +208,18 @@ class AirconditionerClientProtocol(asyncio.Protocol):
             self.transport.close()
             print('Authentication period expired, exiting.', file=sys.stderr)
 
-    def handle_post_auth(self):
+    # Handle post_auth action
+    def handle_post_auth(self, *args):
         if self.post_auth_command is not None:
             self.transport.write(self.post_auth_command.encode())
-            
-        else:
-            self.stay_connected = False
         
+        if self.post_auth_command_timer is not None:
+            task = asyncio.get_event_loop().create_task(self.wait_for_post_auth_timer())
+            task.add_done_callback(self.handle_post_auth)
+
         return
 
+    # Timer for post_auth_timer
+    @asyncio.coroutine
+    def wait_for_post_auth_timer(self):
+        return(yield from asyncio.sleep(self.post_auth_command_timer))

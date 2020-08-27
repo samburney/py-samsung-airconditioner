@@ -82,11 +82,10 @@ def main():
                 influx_client = influxdb.InfluxDBClient(
                     host=config['influxdb']['host'],
                     port=config['influxdb']['port'],
-                    username=None,
-                    password=None,
+                    username=config['influxdb']['username'],
+                    password=config['influxdb']['password'],
                 )
 
-                influx_client.create_database(config['influxdb']['db'])
                 influx_client.switch_database(config['influxdb']['db'])
 
                 tags = {}
