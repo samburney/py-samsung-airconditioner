@@ -1,9 +1,11 @@
 version: '2.4'
 
 services:
-    python:
-        image: 'python-samsung-ac:dev'
-        build: '.'
-        command: /bin/sh -c "while sleep 1000; do :; done"
+    samsung-ac:
+        image: 'samburney/py-samsung-ac:latest'
+        restart: 'unless-stopped'
+        build:
+            context: '.'
+            dockerfile: 'Dockerfile'
         volumes:
-            - '.:/app'
+            - './samsung_ac/config.ini:/app/samsung_ac/config.ini'
